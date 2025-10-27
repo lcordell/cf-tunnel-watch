@@ -1,0 +1,11 @@
+name = "cf-tunnel-watch"
+main = "worker.js"
+compatibility_date = "2025-10-01"
+
+[triggers]
+crons = ["*/1 * * * *"]   # toutes les minutes
+
+# KV binding (crée le namespace d'abord: wrangler kv:namespace create STATE)
+[[kv_namespaces]]
+binding = "STATE"
+id = "dcc96446226949f29ba36e7f9ef9f213"
