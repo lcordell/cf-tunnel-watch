@@ -7,6 +7,10 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/run") {
+      const auth = req.headers.get("Authorization");
+      if (!env.RUN_SECRET || auth !== `Bearer ${env.RUN_SECRET}`) {
+        return new Response("Unauthorized", { status: 401 });
+      }
       return checkTunnelsAndNotify(env).then(() => new Response("ok"));
     }
     return new Response("use /run or cron");
