@@ -17,6 +17,16 @@ export default {
   }
 };
 
+async function isTunnelUp(accountId, tid, headers) {
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/cfd_tunnel/${tid}/connections`,
+    { headers }
+  );
+  const json = await res.json();
+  const conns = json.result || [];
+  return Array.isArray(conns) && conns.length > 0;
+}
+
 async function checkTunnelsAndNotify(env) {
   const headers = {
     "Authorization": `Bearer ${env.CF_API_TOKEN}`,
@@ -39,22 +49,19 @@ async function checkTunnelsAndNotify(env) {
     const name = t.name || tid;
 
     // 2) Connections du tunnel
-    const connRes = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tid}/connections`,
-      { headers }
-    );
-    const connJson = await connRes.json();
-    const conns = (connJson.result || []);
-    const up = Array.isArray(conns) && conns.length > 0;
+    const up = await isTunnelUp(env.CF_ACCOUNT_ID, tid, headers);
 
-    // 3) Dédup via KV: notifier seulement si changement
+    // 3) If down, re-check immediately to confirm
+    const confirmedUp = up || await isTunnelUp(env.CF_ACCOUNT_ID, tid, headers);
+
+    // 4) Dédup via KV: notifier seulement si changement
     const key = `tunnel:${tid}:status`;
     const prev = (await env.STATE.get(key)) || "unknown";
-    const now = up ? "up" : "down";
+    const now = confirmedUp ? "up" : "down";
 
     if (prev !== now) {
-      await env.STATE.put(key, now); // mémorise le nouvel état
-      const emoji = up ? "✅" : "⚠️";
+      await env.STATE.put(key, now);
+      const emoji = confirmedUp ? "✅" : "⚠️";
       messages.push(`${emoji} *${name}* → ${now.toUpperCase()}`);
     }
   }
